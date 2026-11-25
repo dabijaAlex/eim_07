@@ -3,6 +3,7 @@ package ro.pub.cs.systems.eim.bluetoothchatapp
 import android.Manifest
 import android.bluetooth.BluetoothSocket
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
@@ -10,15 +11,16 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
+// BluetoothSocket este canalul de comunicatie stabilit cu un alt device bluetooth.
 class ConnectedThread(
-        private val mainActivity: MainActivity,
-        private val socket: BluetoothSocket
+    private val mainActivity: MainActivity,
+    private val socket: BluetoothSocket
 ) : Thread() {
 
     private val inputStream: InputStream?
     private val outputStream: OutputStream?
 
-            init {
+    init {
         var tmpIn: InputStream? = null
         var tmpOut: OutputStream? = null
 
@@ -38,6 +40,8 @@ class ConnectedThread(
         outputStream = tmpOut
     }
 
+
+
     override fun run() {
         val buffer = ByteArray(1024)
         var bytes: Int
@@ -46,44 +50,53 @@ class ConnectedThread(
             return
         }
 
-        val remoteDeviceName = socket.remoteDevice.name
+        // obtine numele device-ului cu care comunicam
+        val remoteDeviceName = socket.getRemoteDevice().name
 
-        mainActivity.runOnUiThread {
-            Toast.makeText(mainActivity, "Connected to $remoteDeviceName", Toast.LENGTH_SHORT).show()
-        }
+        mainActivity.runOnUiThread { Toast.makeText(mainActivity, "Connected to $remoteDeviceName", Toast.LENGTH_SHORT).show() }
 
         while (true) {
             try {
-                bytes = inputStream?.read(buffer) ?: break
-                        val incomingMessage = String(buffer, 0, bytes)
-                mainActivity.runOnUiThread {
-                    mainActivity.addChatMessage("$remoteDeviceName: $incomingMessage")
-                }
+                bytes = inputStream!!.read(buffer)  // Citește mesajul
+                val incomingMessage = String(buffer, 0, bytes)
+
+                // Adaugam mesajul in threadul de UI al aplicatiei
+                mainActivity.runOnUiThread { mainActivity.addChatMessage("$remoteDeviceName: $incomingMessage") }
             } catch (e: IOException) {
-                mainActivity.runOnUiThread {
-                    Toast.makeText(mainActivity, "Connection lost.", Toast.LENGTH_SHORT).show()
-                }
+                mainActivity.runOnUiThread { Toast.makeText(mainActivity, "Connection lost.", Toast.LENGTH_SHORT).show() }
                 break
             }
         }
     }
 
+
+
+
+
     fun write(bytes: ByteArray) {
         try {
-            outputStream?.write(bytes)
+            outputStream!!.write(bytes)
         } catch (e: IOException) {
-            mainActivity.runOnUiThread {
-                Toast.makeText(mainActivity, "Failed to send message.", Toast.LENGTH_SHORT).show()
-            }
-            Log.d("Connected->Write", "Failed to write to output stream: ${e.message}")
+            mainActivity.runOnUiThread { Toast.makeText(mainActivity, "Failed to send message.", Toast.LENGTH_SHORT).show() }
+            Log.d("Connected->Write", e.toString())
         }
     }
 
+
+
+
+
     fun cancel() {
         try {
+            if (socket == null) {
+                Log.d("ConnectedThread", "Socket is null, cannot close.")
+                return
+            }
             socket.close()
         } catch (e: IOException) {
-            Log.d("Connected->Cancel", "Failed to close socket: ${e.message}")
+            Log.d("Connected->Cancel", e.toString())
         }
     }
+
+
 }
